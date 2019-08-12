@@ -38,6 +38,7 @@ class Trainer:
         validation_interval=1,
         hooks=[],
         loss_is_normalized=True,
+        n_acc_steps=1
     ):
         self.model_path = model_path
         self.checkpoint_path = os.path.join(self.model_path, "checkpoints")
@@ -48,6 +49,7 @@ class Trainer:
         self.keep_n_checkpoints = keep_n_checkpoints
         self.hooks = hooks
         self.loss_is_normalized = loss_is_normalized
+        self.n_acc_steps = n_acc_steps
 
         self._model = model
         self._stop = False
@@ -178,8 +180,9 @@ class Trainer:
                 #                else:
                 train_iter = self.train_loader
 
+                self.optimizer.zero_grad()
+                step_num = 1
                 for train_batch in train_iter:
-                    self.optimizer.zero_grad()
 
                     for h in self.hooks:
                         h.on_batch_begin(self, train_batch)
@@ -188,9 +191,15 @@ class Trainer:
                     train_batch = {k: v.to(device) for k, v in train_batch.items()}
 
                     result = self._model(train_batch)
-                    loss = self.loss_fn(train_batch, result)
+                    loss = self.loss_fn(train_batch, result) / self.n_acc_steps
                     loss.backward()
-                    self.optimizer.step()
+
+                    if step_num == self.n_acc_steps:
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
+                        step_num = 1
+
+                    step_num += 1
                     self.step += 1
 
                     for h in self.hooks:
