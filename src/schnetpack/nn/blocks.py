@@ -27,7 +27,7 @@ class MLP(nn.Module):
     """
 
     def __init__(
-        self, n_in, n_out, n_hidden=None, n_layers=2, activation=shifted_softplus
+        self, n_in, n_out, n_hidden=None, n_layers=2, activation=shifted_softplus, output_activation=None
     ):
         super(MLP, self).__init__()
         # get list of number of nodes in input, hidden & output layers
@@ -50,7 +50,7 @@ class MLP(nn.Module):
             for i in range(n_layers - 1)
         ]
         # assign a Dense layer (without activation function) to the output layer
-        layers.append(Dense(self.n_neurons[-2], self.n_neurons[-1], activation=None))
+        layers.append(Dense(self.n_neurons[-2], self.n_neurons[-1], activation=output_activation))
         # put all layers together to make the network
         self.out_net = nn.Sequential(*layers)
 
