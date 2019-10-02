@@ -117,7 +117,7 @@ Advanced logging with **TensorBoard** event files can be activated using ``--log
 
 To evaluate the trained model that showed the best validation error during training (i.e., early stopping), call::
 
-   $ spk_run.py eval <modeldir> [--split train val test] [--cuda]
+   $ spk_run.py eval <datapath> <modeldir> [--split train val test] [--cuda]
 
 which will write a result file ``evaluation.txt`` into the model directory.
 
@@ -125,6 +125,59 @@ which will write a result file ``evaluation.txt`` into the model directory.
 
    ``<modeldir>`` should point to a directory in which a pre-trained model is stored. As an argument for the --split
    flag for evaluation you should choose among one of training, validation or test subsets.
+
+==================================
+Using Scripts with custom Datasets
+==================================
+
+The script for benchmark data can also train a model on custom data sets, by using::
+
+   $ spk_run.py train <schnet/wacsf> custom <dbpath> <modeldir> --split num_train num_val --property your_property [--cuda]
+
+Depending on your data you will need to define some settings that have already been
+pre-selected for the benchmark data. In order to show how to use the script
+on arbitrary data sets, we will use the MD17 data set and treat it as a custom data
+set. First of all we need to define the property that we want to use for training.
+In this example we will train the model on the *energy* labels. If we want to use the
+*forces* during training, we need to add the ``--derivative`` argument and also set
+``--negative_dr``, because the gradient of the energy predictions corresponds to the
+negative forces. Since energy is a property that depends on the total number of atoms
+we select ``--aggregation_mode sum``. Other properties (e.g. homo, lumo, ...) do not
+depend on the total number of atoms and will therefore use the mean aggregation mode.
+While most properties should be trained with the ``spk.nn.Atomwise`` output module
+which is selected by default, some properties require special output modules.
+Models using the ``spk.SchNet`` representation support ``dipole_moment`` and
+``electronic_spatial_extent``. Note that if your model is based on the
+``spk.BehlerSFBlock`` representation you need to select between
+``elemental_atomwise`` and ``elemental_dipole_moment``. The output module selection
+is defined with ``--output_module <atomwise/elemental/atomwise/dipole_moment/...>``.
+The final command for the MD17 example would be::
+
+   $ spk_run.py train <schnet/wacsf> custom <dbpath> <modeldir> --split num_train num_val --property energy --derivative forces --negative_dr --aggregation_mode sum [--cuda]
+
+The command for training a QM9-like data set on dipole moments would be::
+
+   $ spk_run.py train <schnet/wacsf> custom <dbpath> <modeldir> --split num_train num_val --property dipole_moment --output_module dipole_moment --aggregation_mode sum [--cuda]
+
+The evaluation of the trained model uses the same commands as any pre-implemented
+data set.
+
+=================================
+Using Argument Files for Training
+=================================
+
+An argument file with all training arguments is created at the beginning of every
+training session and can be found at *<modeldir>/args.json*. These argument
+files can be modified and used for new training sessions. In order to build a file
+with default settings run::
+
+   $ spk_run.py train <schnet/wacsf> custom <dbpath> <modeldir>
+
+This will create the <modeldir> which contains the argument file, while the training
+session will fail because ``--split`` is not selected. You can now modify the
+arguments and use them for training::
+
+   $ spk_run.py from_json <modeldir>/args.json
 
 ================
 Supported Models
