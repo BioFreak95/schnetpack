@@ -1,5 +1,8 @@
 import torch
 import torch.nn as nn
+from torch.autograd import Variable
+import torch.nn.functional as F
+
 
 from schnetpack.nn.base import Dense
 from schnetpack import Properties
@@ -132,6 +135,9 @@ class SchNet(nn.Module):
         trainable_gaussians=False,
         distance_expansion=None,
         charged_systems=False,
+        use_noise=False,
+        noise_mean=0,
+        noise_std=1,
     ):
         super(SchNet, self).__init__()
 
@@ -152,7 +158,22 @@ class SchNet(nn.Module):
             self.distance_expansion = distance_expansion
 
         # block for computing interaction
-        if coupled_interactions:
+        if isinstance(n_filters, list):
+            self.interactions = nn.ModuleList(
+                [
+                    SchNetInteraction(
+                        n_atom_basis=n_atom_basis,
+                        n_spatial_basis=n_gaussians,
+                        n_filters=n_filters[i],
+                        cutoff_network=cutoff_network,
+                        cutoff=cutoff,
+                        normalize_filter=normalize_filter,
+                    )
+                    for i in range(n_interactions)
+                ]
+            )
+
+        elif coupled_interactions:
             # use the same SchNetInteraction instance (hence the same weights)
             self.interactions = nn.ModuleList(
                 [
@@ -184,6 +205,9 @@ class SchNet(nn.Module):
             )
 
         # set attributes
+        self.use_noise = use_noise
+        self.noise_mean = noise_mean
+        self.noise_std = noise_std
         self.return_intermediate = return_intermediate
         self.charged_systems = charged_systems
         if charged_systems:
@@ -219,6 +243,11 @@ class SchNet(nn.Module):
             charge = inputs[Properties.charge] / n_atoms  # B
             charge = charge[:, None] * self.charge  # B x F
             x = x + charge
+
+        shape = torch.zeros(positions.size())
+        noise = Variable(torch.normal(mean=shape+self.noise_mean, std=shape+self.noise_std)).cuda()
+        if self.use_noise:
+            positions + noise
 
         # compute interatomic distance of every atom to its neighbors
         r_ij = self.distances(
