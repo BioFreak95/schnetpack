@@ -182,6 +182,8 @@ class Trainer:
 
                 self.optimizer.zero_grad()
                 step_num = 0
+                loss_sum = 0
+                batch_num = 0
                 for train_batch in train_iter:
 
                     for h in self.hooks:
@@ -193,20 +195,23 @@ class Trainer:
                     result = self._model(train_batch)
                     loss = self.loss_fn(train_batch, result) / self.n_acc_steps
                     loss.backward()
+                    loss_sum += loss
 
                     step_num += 1
-                    if step_num == self.n_acc_steps:
+                    if step_num == self.n_acc_steps or batch_num == len(train_iter):
                         self.optimizer.step()
-                        self.optimizer.zero_grad()
                         step_num = 0
 
-                    self.step += 1
+                        self.step += 1
 
-                    for h in self.hooks:
-                        h.on_batch_end(self, train_batch, result, loss)
+                        for h in self.hooks:
+                            h.on_batch_end(self, train_batch, result, loss)
 
-                    if self._stop:
-                        break
+                        if self._stop:
+                            break
+
+                        loss_sum = 0
+                        self.optimizer.zero_grad()
 
                 if self.epoch % self.checkpoint_interval == 0:
                     self.store_checkpoint()
