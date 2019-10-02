@@ -70,6 +70,7 @@ class Atomwise(nn.Module):
         aggregation_mode="sum",
         n_layers=2,
         n_neurons=None,
+        output_activation=None,
         activation=schnetpack.nn.activations.shifted_softplus,
         property="y",
         contributions=None,
@@ -105,7 +106,7 @@ class Atomwise(nn.Module):
         if outnet is None:
             self.out_net = nn.Sequential(
                 schnetpack.nn.base.GetItem("representation"),
-                schnetpack.nn.blocks.MLP(n_in, n_out, n_neurons, n_layers, activation),
+                schnetpack.nn.blocks.MLP(n_in, n_out, n_neurons, n_layers, activation, output_activation),
             )
         else:
             self.out_net = outnet

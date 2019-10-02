@@ -21,8 +21,7 @@ class MLP(nn.Module):
             n_in resulting in a pyramidal network.
         n_layers (int, optional): number of layers.
         activation (callable, optional): activation function. All hidden layers would
-            the same activation function except the output layer that does not apply
-            any activation function.
+            the same activation function except the output layer
 
     """
 
