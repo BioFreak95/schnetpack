@@ -186,6 +186,9 @@ class Trainer:
                 batch_num = 0
                 for train_batch in train_iter:
 
+                    batch_num += 1
+                    step_num += 1
+
                     for h in self.hooks:
                         h.on_batch_begin(self, train_batch)
 
@@ -197,7 +200,6 @@ class Trainer:
                     loss.backward()
                     loss_sum += loss
 
-                    step_num += 1
                     if step_num == self.n_acc_steps or batch_num == len(train_iter):
                         self.optimizer.step()
                         step_num = 0

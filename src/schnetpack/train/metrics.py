@@ -95,8 +95,8 @@ class ModelBias(Metric):
         self.l2loss += torch.sum(diff.view(-1)).detach().cpu().data.numpy()
         if self.element_wise:
             self.n_entries += (
-                torch.sum(batch[Properties.atom_mask]).detach().cpu().data.numpy()
-                * y.shape[-1]
+                    torch.sum(batch[Properties.atom_mask]).detach().cpu().data.numpy()
+                    * y.shape[-1]
             )
         else:
             self.n_entries += np.prod(y.shape)
@@ -121,12 +121,12 @@ class MeanSquaredError(Metric):
     """
 
     def __init__(
-        self,
-        target,
-        model_output=None,
-        bias_correction=None,
-        name=None,
-        element_wise=False,
+            self,
+            target,
+            model_output=None,
+            bias_correction=None,
+            name=None,
+            element_wise=False,
     ):
         name = "MSE_" + target if name is None else name
         super(MeanSquaredError, self).__init__(
@@ -168,8 +168,8 @@ class MeanSquaredError(Metric):
         self.l2loss += torch.sum(diff.view(-1) ** 2).detach().cpu().data.numpy()
         if self.element_wise:
             self.n_entries += (
-                torch.sum(batch[Properties.atom_mask]).detach().cpu().data.numpy()
-                * y.shape[-1]
+                    torch.sum(batch[Properties.atom_mask]).detach().cpu().data.numpy()
+                    * y.shape[-1]
             )
         else:
             self.n_entries += np.prod(y.shape)
@@ -194,12 +194,12 @@ class RootMeanSquaredError(MeanSquaredError):
     """
 
     def __init__(
-        self,
-        target,
-        model_output=None,
-        bias_correction=None,
-        name=None,
-        element_wise=False,
+            self,
+            target,
+            model_output=None,
+            bias_correction=None,
+            name=None,
+            element_wise=False,
     ):
         name = "RMSE_" + target if name is None else name
         super(RootMeanSquaredError, self).__init__(
@@ -227,12 +227,12 @@ class MeanAbsoluteError(Metric):
     """
 
     def __init__(
-        self,
-        target,
-        model_output=None,
-        bias_correction=None,
-        name=None,
-        element_wise=False,
+            self,
+            target,
+            model_output=None,
+            bias_correction=None,
+            name=None,
+            element_wise=False,
     ):
         name = "MAE_" + target if name is None else name
         super(MeanAbsoluteError, self).__init__(
@@ -280,8 +280,8 @@ class MeanAbsoluteError(Metric):
         )
         if self.element_wise:
             self.n_entries += (
-                torch.sum(batch[Properties.atom_mask]).detach().cpu().data.numpy()
-                * y.shape[-1]
+                    torch.sum(batch[Properties.atom_mask]).detach().cpu().data.numpy()
+                    * y.shape[-1]
             )
         else:
             self.n_entries += np.prod(y.shape)
@@ -352,7 +352,7 @@ class SumMAE(MeanAbsoluteError):
    """
 
     def __init__(
-        self, target, model_output=None, axis=1, name=None, element_wise=False
+            self, target, model_output=None, axis=1, name=None, element_wise=False
     ):
         name = "SumMAE_" + target if name is None else name
         self.axis = axis
@@ -589,3 +589,57 @@ class AngleRMSE(RootMeanSquaredError):
         self.n_entries += (
             torch.sum(torch.isnan(diff) == False).detach().cpu().data.numpy()
         )
+
+
+class Accuracy(Metric):
+    r"""
+    Metric for accuracy.
+
+    Args:
+        target (str): name of target property
+        model_output (int, str): index or key, in case of multiple outputs
+            (Default: None)
+        name (str): name used in logging for this metric. If set to `None`,
+            `ACC_[target]` will be used (Default: None)
+    """
+
+    def __init__(
+            self,
+            target,
+            model_output=None,
+            name=None,
+    ):
+        name = "ACC_" + target if name is None else name
+        super(Accuracy, self).__init__(
+            target=target,
+            model_output=model_output,
+            name=name,
+        )
+
+        self.l1loss = 0.0
+        self.n_entries = 0.0
+
+    def reset(self):
+        """Reset metric attributes after aggregation to collect new batches."""
+        self.l1loss = 0.0
+        self.n_entries = 0.0
+
+    def add_batch(self, batch, result):
+        y = batch[self.target]
+        if self.model_output is None:
+            yp = result
+        else:
+            if type(self.model_output) is list:
+                for idx in self.model_output:
+                    result = result[idx]
+            else:
+                result = result[self.model_output]
+            yp = result
+        indices_p = yp.argmax(1)
+        indices_t = y.squeeze(1).long()
+        self.l1loss += torch.sum(torch.eq(indices_p, indices_t)).detach().cpu().data.numpy()
+        self.n_entries += list(indices_p.shape)[0]
+
+    def aggregate(self):
+        """Aggregate metric over all previously added batches."""
+        return self.l1loss / self.n_entries
