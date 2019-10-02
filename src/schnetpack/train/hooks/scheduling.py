@@ -36,6 +36,9 @@ class EarlyStoppingHook(Hook):
             self.best_loss = val_loss
             self.counter = 0
 
+        if np.isnan(val_loss):
+            trainer._stop = True
+
         if self.counter > self.patience:
             trainer._stop = True
 
