@@ -207,7 +207,7 @@ class Trainer:
                         self.step += 1
 
                         for h in self.hooks:
-                            h.on_batch_end(self, train_batch, result, loss)
+                            h.on_batch_end(self, train_batch, result, loss_sum)
 
                         if self._stop:
                             break

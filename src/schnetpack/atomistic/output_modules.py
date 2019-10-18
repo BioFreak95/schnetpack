@@ -90,6 +90,7 @@ class Atomwise(nn.Module):
         self.contributions = contributions
         self.derivative = derivative
         self.negative_dr = negative_dr
+        self.n_in = n_in
 
         mean = torch.FloatTensor([0.0]) if mean is None else mean
         stddev = torch.FloatTensor([1.0]) if stddev is None else stddev
@@ -113,6 +114,8 @@ class Atomwise(nn.Module):
 
         # build standardization layer
         self.standardize = schnetpack.nn.base.ScaleShift(mean, stddev)
+        self.rep = schnetpack.nn.base.GetItem("representation")
+        self.dense = schnetpack.nn.blocks.MLP(600, 1, None, n_layers, schnetpack.nn.activations.shifted_softplus)
 
         # build aggregation layer
         if aggregation_mode == "sum":
@@ -130,8 +133,10 @@ class Atomwise(nn.Module):
         """
         atomic_numbers = inputs[Properties.Z]
         atom_mask = inputs[Properties.atom_mask]
-
+        #test = self.test(inputs)
         # run prediction
+        #yi = torch.mean(test, 1)
+
         yi = self.out_net(inputs)
         yi = self.standardize(yi)
 
@@ -139,7 +144,12 @@ class Atomwise(nn.Module):
             y0 = self.atomref(atomic_numbers)
             yi = yi + y0
 
-        y = self.atom_pool(yi, atom_mask)
+        #y = self.atom_pool(yi, atom_mask)
+        #yi = self.rep(inputs)
+        yi = yi.view(-1,600)
+        #yi = self.standardize(yi)
+        #print(yi.size())
+        y = self.dense(yi)
 
         # collect results
         result = {self.property: y}

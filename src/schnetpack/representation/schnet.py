@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
-
+import torch.distributions as dist
 
 from schnetpack.nn.base import Dense
 from schnetpack import Properties
@@ -138,13 +138,30 @@ class SchNet(nn.Module):
         use_noise=False,
         noise_mean=0,
         noise_std=1,
+        chargeEmbedding = True,
+        selectFet = None,
     ):
         super(SchNet, self).__init__()
 
+        self.chargeEmbedding = chargeEmbedding
         self.n_atom_basis = n_atom_basis
+        self.selectFet = selectFet
+
         # make a lookup table to store embeddings for each element (up to atomic
         # number max_z) each of which is a vector of size n_atom_basis
-        self.embedding = nn.Embedding(max_z, n_atom_basis, padding_idx=0)
+        if self.chargeEmbedding and selectFet is None:
+            self.embedding = nn.Embedding(max_z, int(n_atom_basis / 2), padding_idx=0)
+            self.dense = Dense(8, int(n_atom_basis / 2))
+            #print('A')
+        elif not self.chargeEmbedding and selectFet is None:
+            self.dense = Dense(8, n_atom_basis)
+            #print('B')
+        elif self.chargeEmbedding and selectFet is not None:
+            self.embedding = nn.Embedding(max_z, int(n_atom_basis / 2), padding_idx=0)
+            self.dense = Dense(1, int(n_atom_basis / 2))
+        else:
+            self.dense = Dense(1, n_atom_basis)
+            #print('D')
 
         # layer for computing interatomic distances
         self.distances = AtomDistances()
@@ -213,6 +230,7 @@ class SchNet(nn.Module):
         if charged_systems:
             self.charge = nn.Parameter(torch.Tensor(1, n_atom_basis))
             self.charge.data.normal_(0, 1.0 / n_atom_basis ** 0.5)
+        self.newpos = Variable(torch.rand([1,600,3])).cuda()
 
     def forward(self, inputs):
         """Compute atomic representations/embeddings.
@@ -228,15 +246,51 @@ class SchNet(nn.Module):
         """
         # get tensors from input dictionary
         atomic_numbers = inputs[Properties.Z]
-        positions = inputs[Properties.R]
+        positions = self.newpos #inputs[Properties.R]
         cell = inputs[Properties.cell]
         cell_offset = inputs[Properties.cell_offset]
         neighbors = inputs[Properties.neighbors]
         neighbor_mask = inputs[Properties.neighbor_mask]
         atom_mask = inputs[Properties.atom_mask]
+        ligand_indicator = inputs['props'][:,:,7:8]
+        print('li: ', ligand_indicator.size())
 
+        if self.selectFet is not None:
+            props = inputs['props'][:,:,self.selectFet:self.selectFet + 1]
+            for i in range(len(props)):
+                yes = False
+                for k in range(len(props[0])):
+                    if props[i][k][0] == 1:
+                        print('prot', i)
+                        yes = True
+                    else:
+                        print('lig')
+                if not yes:
+                    print(i, ' has no prot')
+            print(props)
+        else:
+            props = inputs['props']
+        '''
+        for i in range(len(props)):
+            for k in props[i]:
+                print(k)
+                if k[7]:
+                    print('hi')
+        '''
+        #print(p.size())
+
+        if self.chargeEmbedding:
         # get atom embeddings for the input atomic numbers
-        x = self.embedding(atomic_numbers)
+            #print(props.size())
+            p = self.dense(props)
+            x = self.embedding(atomic_numbers)
+
+            x = torch.cat((p,x), 2)
+            print(x.size())
+        else:
+            #print(props.size())
+            x = self.dense(props)
+
 
         if False and self.charged_systems and Properties.charge in inputs.keys():
             n_atoms = torch.sum(atom_mask, dim=1, keepdim=True)
@@ -244,10 +298,11 @@ class SchNet(nn.Module):
             charge = charge[:, None] * self.charge  # B x F
             x = x + charge
 
-        shape = torch.zeros(positions.size())
-        noise = Variable(torch.normal(mean=shape+self.noise_mean, std=shape+self.noise_std)).cuda()
+        shape = positions.size()
+        print(positions)
+        noise = Variable(torch.rand(shape) * self.noise_mean).cuda()
         if self.use_noise:
-            positions + noise
+            positions # + noise
 
         # compute interatomic distance of every atom to its neighbors
         r_ij = self.distances(
@@ -264,7 +319,7 @@ class SchNet(nn.Module):
             x = x + v
             if self.return_intermediate:
                 xs.append(x)
-
+        #x = torch.cat((x, ligand_indicator), 2)
         if self.return_intermediate:
             return x, xs
         return x
