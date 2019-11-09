@@ -26,19 +26,21 @@ class Trainer:
    """
 
     def __init__(
-        self,
-        model_path,
-        model,
-        loss_fn,
-        optimizer,
-        train_loader,
-        validation_loader,
-        keep_n_checkpoints=3,
-        checkpoint_interval=10,
-        validation_interval=1,
-        hooks=[],
-        loss_is_normalized=True,
-        n_acc_steps=1
+            self,
+            model_path,
+            model,
+            loss_fn,
+            optimizer,
+            train_loader,
+            validation_loader,
+            keep_n_checkpoints=3,
+            checkpoint_interval=10,
+            validation_interval=1,
+            hooks=[],
+            loss_is_normalized=True,
+            n_acc_steps=1,
+            remember=10,
+            ensembleModel=False,
     ):
         self.model_path = model_path
         self.checkpoint_path = os.path.join(self.model_path, "checkpoints")
@@ -50,6 +52,8 @@ class Trainer:
         self.hooks = hooks
         self.loss_is_normalized = loss_is_normalized
         self.n_acc_steps = n_acc_steps
+        self.remember = remember
+        self.ensembleModel = ensembleModel
 
         self._model = model
         self._stop = False
@@ -63,6 +67,7 @@ class Trainer:
         else:
             os.makedirs(self.checkpoint_path)
             self.epoch = 0
+            self.epoch_losses = []
             self.step = 0
             self.best_loss = float("inf")
             self.store_checkpoint()
@@ -144,6 +149,19 @@ class Trainer:
         )
         self.state_dict = torch.load(chkpt)
 
+    def calc_pred(self, prediction, epoch_losses, batch_num, remember=10):
+        preds = []
+        preds.append(prediction)
+        lene = len(epoch_losses) - 1
+        if lene <= remember:
+            lene2 = -1
+        else:
+            lene2 = lene - remember
+        for i in range(lene, lene2, -1):
+            preds.append(epoch_losses[i][batch_num])
+        pred = torch.mean(torch.tensor(preds))
+        return pred
+
     def train(self, device, n_epochs=sys.maxsize):
         """Train the model for the given number of epochs on a specified device.
 
@@ -165,6 +183,7 @@ class Trainer:
             for _ in range(n_epochs):
                 # increase number of epochs by 1
                 self.epoch += 1
+                print('Epoch: ', self.epoch, ' of ', n_epochs)
 
                 for h in self.hooks:
                     h.on_epoch_begin(self)
@@ -188,6 +207,7 @@ class Trainer:
 
                     batch_num += 1
                     step_num += 1
+                    print('Batch: ', batch_num, ' of ', len(train_iter))
 
                     for h in self.hooks:
                         h.on_batch_begin(self, train_batch)
@@ -207,7 +227,7 @@ class Trainer:
                         self.step += 1
 
                         for h in self.hooks:
-                            h.on_batch_end(self, train_batch, result, loss)
+                            h.on_batch_end(self, train_batch, result, loss_sum)
 
                         if self._stop:
                             break
@@ -225,6 +245,11 @@ class Trainer:
 
                     val_loss = 0.0
                     n_val = 0
+
+                    if self.ensembleModel:
+                        batch_num = 0
+                        batch_losses = []
+
                     for val_batch in self.validation_loader:
                         # append batch_size
                         vsize = list(val_batch.values())[0].size(0)
@@ -237,9 +262,21 @@ class Trainer:
                         val_batch = {k: v.to(device) for k, v in val_batch.items()}
 
                         val_result = self._model(val_batch)
+
+                        if self.ensembleModel:
+                            prediction = val_result['y']
+                            if self.epoch == 1:
+                                pred = prediction
+                            else:
+                                pred = self.calc_pred(prediction, self.epoch_losses, batch_num, self.remember)
+                            batch_losses.append(pred)
+                            batch_num += 1
+                            val_result['y'] = pred
+
                         val_batch_loss = (
                             self.loss_fn(val_batch, val_result).data.cpu().numpy()
                         )
+                        # print('Pred: ', val_result['y'])
                         if self.loss_is_normalized:
                             val_loss += val_batch_loss * vsize
                         else:
@@ -258,6 +295,8 @@ class Trainer:
 
                     for h in self.hooks:
                         h.on_validation_end(self, val_loss)
+                    if self.ensembleModel:
+                        self.epoch_losses.append(batch_losses)
 
                 for h in self.hooks:
                     h.on_epoch_end(self)
