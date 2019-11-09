@@ -97,15 +97,17 @@ class AtomsData(Dataset):
     ENCODING = "utf-8"
 
     def __init__(
-        self,
-        dbpath,
-        subset=None,
-        available_properties=None,
-        load_only=None,
-        units=None,
-        environment_provider=SimpleEnvironmentProvider(),
-        collect_triples=False,
-        centering_function=get_center_of_mass,
+            self,
+            dbpath,
+            subset=None,
+            available_properties=None,
+            load_only=None,
+            units=None,
+            environment_provider=SimpleEnvironmentProvider(),
+            collect_triples=False,
+            centering_function=get_center_of_mass,
+            deleteIntraatomicInteraction=False,
+            intraAtomicIdent=None,
     ):
         if not dbpath.endswith(".db"):
             raise AtomsDataError(
@@ -115,6 +117,8 @@ class AtomsData(Dataset):
 
         self.dbpath = dbpath
         self.subset = subset
+        self.deleteIntraatomicInteraction = deleteIntraatomicInteraction
+        self.intraAtomicIdent = intraAtomicIdent
         self.load_only = load_only
         self.available_properties = self.get_available_properties(available_properties)
         if load_only is None:
@@ -151,7 +155,7 @@ class AtomsData(Dataset):
             db_properties = [prop for prop in db_properties if not prop.startswith("_")]
         # check if properties match
         if available_properties is None or set(db_properties) == set(
-            available_properties
+                available_properties
         ):
             return db_properties
 
@@ -367,6 +371,8 @@ class AtomsData(Dataset):
             collect_triples=self.collect_triples,
             centering_function=self.centering_function,
             output=properties,
+            deleteIntraatomicInteraction=self.deleteIntraatomicInteraction,
+            intraAtomicIdent=self.intraAtomicIdent,
         )
 
         return at, properties
@@ -390,7 +396,7 @@ class AtomsData(Dataset):
 
         if len(col) == 1:
             col = col[0]
-            atomref = np.array(self.get_metadata("atomrefs"))[:, col : col + 1]
+            atomref = np.array(self.get_metadata("atomrefs"))[:, col: col + 1]
         else:
             atomref = None
 
@@ -413,11 +419,13 @@ class AtomsData(Dataset):
 
 
 def _convert_atoms(
-    atoms,
-    environment_provider=SimpleEnvironmentProvider(),
-    collect_triples=False,
-    centering_function=None,
-    output=None,
+        atoms,
+        environment_provider=SimpleEnvironmentProvider(),
+        collect_triples=False,
+        centering_function=None,
+        output=None,
+        deleteIntraatomicInteraction=False,
+        intraAtomicIdent=None,
 ):
     """
         Helper function to convert ASE atoms object to SchNetPack input format.
@@ -453,8 +461,23 @@ def _convert_atoms(
     # get atom environment
     nbh_idx, offsets = environment_provider.get_environment(atoms)
 
+    if deleteIntraatomicInteraction:
+        if intraAtomicIdent is None:
+            intraAtomicIdent = inputs['props'][:, :, 7:8]
+        nl = nbh_idx.astype(np.int).copy()
+        ligand_indicator = intraAtomicIdent
+
+        for i in range(len(nl)):
+            for j in range(len(nl[i])):
+                atom_1 = i
+                atom_2 = nl[i][j]
+                if ligand_indicator[atom_1] != ligand_indicator[atom_2]:
+                    nl[i][j] = -1
+        inputs[Properties.neighbors] = torch.LongTensor(nl.astype(np.int))
+    else:
+        inputs[Properties.neighbors] = torch.LongTensor(nbh_idx.astype(np.int))
+
     # Get neighbors and neighbor mask
-    inputs[Properties.neighbors] = torch.LongTensor(nbh_idx.astype(np.int))
 
     # Get cells
     inputs[Properties.cell] = torch.FloatTensor(cell)
@@ -488,10 +511,10 @@ class AtomsConverter:
     """
 
     def __init__(
-        self,
-        environment_provider=SimpleEnvironmentProvider(),
-        collect_triples=False,
-        device=torch.device("cpu"),
+            self,
+            environment_provider=SimpleEnvironmentProvider(),
+            collect_triples=False,
+            device=torch.device("cpu"),
     ):
         self.environment_provider = environment_provider
         self.collect_triples = collect_triples
@@ -515,7 +538,7 @@ class AtomsConverter:
         mask = inputs[Properties.neighbors] >= 0
         inputs[Properties.neighbor_mask] = mask.float()
         inputs[Properties.neighbors] = (
-            inputs[Properties.neighbors] * inputs[Properties.neighbor_mask].long()
+                inputs[Properties.neighbors] * inputs[Properties.neighbor_mask].long()
         )
 
         if self.collect_triples:

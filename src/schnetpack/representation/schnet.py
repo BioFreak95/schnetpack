@@ -244,9 +244,9 @@ class SchNet(nn.Module):
             charge = charge[:, None] * self.charge  # B x F
             x = x + charge
 
-        shape = torch.zeros(positions.size())
-        noise = Variable(torch.normal(mean=shape+self.noise_mean, std=shape+self.noise_std)).cuda()
         if self.use_noise:
+            shape = torch.zeros(positions.size())
+            noise = Variable(torch.normal(mean=shape+self.noise_mean, std=shape+self.noise_std)).cuda()
             positions + noise
 
         # compute interatomic distance of every atom to its neighbors
