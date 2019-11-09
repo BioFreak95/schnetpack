@@ -40,6 +40,8 @@ class Atomwise(nn.Module):
         derivative (str or None): Name of property derivative. No derivative
             returned if None. (default: None)
         negative_dr (bool): Multiply the derivative with -1 if True. (default: False)
+        stress (str or None): Name of stress property. Compute the derivative with
+            respect to the cell parameters if not None. (default: None)
         create_graph (bool): If False, the graph used to compute the grad will be
             freed. Note that in nearly all cases setting this option to True is not nee
             ded and often can be worked around in a much more efficient way. Defaults to
@@ -76,6 +78,7 @@ class Atomwise(nn.Module):
         contributions=None,
         derivative=None,
         negative_dr=False,
+        stress=None,
         create_graph=True,
         mean=None,
         stddev=None,
@@ -90,6 +93,7 @@ class Atomwise(nn.Module):
         self.contributions = contributions
         self.derivative = derivative
         self.negative_dr = negative_dr
+        self.stress = stress
 
         mean = torch.FloatTensor([0.0]) if mean is None else mean
         stddev = torch.FloatTensor([1.0]) if stddev is None else stddev
@@ -144,10 +148,10 @@ class Atomwise(nn.Module):
         # collect results
         result = {self.property: y}
 
-        if self.contributions:
+        if self.contributions is not None:
             result[self.contributions] = yi
 
-        if self.derivative:
+        if self.derivative is not None:
             sign = -1.0 if self.negative_dr else 1.0
             dy = grad(
                 result[self.property],
@@ -157,6 +161,24 @@ class Atomwise(nn.Module):
                 retain_graph=True,
             )[0]
             result[self.derivative] = sign * dy
+
+        if self.stress is not None:
+            cell = inputs[Properties.cell]
+            # Compute derivative with respect to cell displacements
+            stress = grad(
+                result[self.property],
+                inputs["displacement"],
+                grad_outputs=torch.ones_like(result[self.property]),
+                create_graph=self.create_graph,
+                retain_graph=True,
+            )[0]
+            # Compute cell volume
+            volume = torch.sum(
+                cell[:, 0] * torch.cross(cell[:, 1], cell[:, 2]), dim=1, keepdim=True
+            )[..., None]
+            # Finalize stress tensor
+            result[self.stress] = stress / volume
+
         return result
 
 
@@ -390,8 +412,7 @@ class Polarizability(Atomwise):
         activation (function): activation function for hidden nn
             (default: spk.nn.activations.shifted_softplus)
         property (str): name of the output property (default: "y")
-        isotropic (str or None): Name of isotropic polarizability property in output
-            dict. Only calculated if not None. (default: None)
+        isotropic (bool): return isotropic polarizability if True. (default: False)
         create_graph (bool): If False, the graph used to compute the grad will be
             freed. Note that in nearly all cases setting this option to True is not nee
             ded and often can be worked around in a much more efficient way. Defaults to
@@ -415,13 +436,14 @@ class Polarizability(Atomwise):
         n_neurons=None,
         activation=L.shifted_softplus,
         property="y",
-        isotropic=None,
+        isotropic=False,
         create_graph=True,
         outnet=None,
         cutoff_network=None,
     ):
         super(Polarizability, self).__init__(
             n_in=n_in,
+            n_out=2,
             n_layers=n_layers,
             aggregation_mode=aggregation_mode,
             n_neurons=n_neurons,
@@ -489,7 +511,7 @@ class Polarizability(Atomwise):
         }
 
         if self.isotropic:
-            result[self.isotropic] = torch.mean(
+            result[self.property] = torch.mean(
                 torch.diagonal(global_polar, dim1=-2, dim2=-1), dim=-1, keepdim=True
             )
         return result

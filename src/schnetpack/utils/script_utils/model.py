@@ -82,6 +82,7 @@ def get_output_module(args, representation, mean, stddev, atomref):
     derivative = spk.utils.get_derivative(args)
     negative_dr = spk.utils.get_negative_dr(args)
     contributions = spk.utils.get_contributions(args)
+    stress = spk.utils.get_stress(args)
     if args.dataset == "md17" and not args.ignore_forces:
         derivative = spk.datasets.MD17.forces
     output_module_str = spk.utils.get_module_str(args)
@@ -113,6 +114,20 @@ def get_output_module(args, representation, mean, stddev, atomref):
             derivative=derivative,
             negative_dr=negative_dr,
             contributions=contributions,
+            stress=stress,
+        )
+    elif output_module_str == "polarizability":
+        return spk.atomistic.output_modules.Polarizability(
+            args.features,
+            aggregation_mode=spk.utils.get_pooling_mode(args),
+            property=args.property,
+        )
+    elif output_module_str == "isotropic_polarizability":
+        return spk.atomistic.output_modules.Polarizability(
+            args.features,
+            aggregation_mode=spk.utils.get_pooling_mode(args),
+            property=args.property,
+            isotropic=True,
         )
     # wacsf modules
     elif output_module_str == "elemental_dipole_moment":
