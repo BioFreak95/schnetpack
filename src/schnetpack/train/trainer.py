@@ -1,3 +1,4 @@
+
 import os
 import sys
 import numpy as np
@@ -155,14 +156,16 @@ class Trainer:
     def calc_pred(self, prediction, epoch_losses, batch_num, remember=10):
         preds = []
         preds.append(prediction)
-        lene = len(epoch_losses) - 1
-        if lene <= remember:
+        lene = len(epoch_losses)
+        if lene < remember:
             lene2 = -1
         else:
             lene2 = lene - remember
-        for i in range(lene, lene2, -1):
+        for i in range(lene - 1, lene2, -1):
             preds.append(epoch_losses[i][batch_num])
-        pred = torch.mean(torch.tensor(preds))
+        preds = torch.tensor(preds)
+        pred = torch.mean(preds)
+        print(pred, preds)
         return pred
 
     def train(self, device, n_epochs=sys.maxsize):
@@ -275,11 +278,12 @@ class Trainer:
                             batch_losses.append(pred)
                             batch_num += 1
                             val_result['y'] = pred
+                            print('Pred: ', val_result['y'])
 
                         val_batch_loss = (
                             self.loss_fn(val_batch, val_result).data.cpu().numpy()
                         )
-                        # print('Pred: ', val_result['y'])
+                        #print(batch_losses, 'Pred', pred)
                         if self.loss_is_normalized:
                             val_loss += val_batch_loss * vsize
                         else:
