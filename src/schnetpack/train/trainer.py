@@ -70,6 +70,7 @@ class Trainer:
             self.epoch_losses = []
             self.step = 0
             self.best_loss = float("inf")
+            self.best_losses = []
             self.store_checkpoint()
 
     def _check_is_parallel(self):
@@ -101,6 +102,7 @@ class Trainer:
             "epoch": self.epoch,
             "step": self.step,
             "best_loss": self.best_loss,
+            "best_losses": self.best_losses,
             "optimizer": self.optimizer.state_dict(),
             "hooks": [h.state_dict for h in self.hooks],
         }
@@ -115,6 +117,7 @@ class Trainer:
         self.epoch = state_dict["epoch"]
         self.step = state_dict["step"]
         self.best_loss = state_dict["best_loss"]
+        self.best_losses = state_dict["best_losses"]
         self.optimizer.load_state_dict(state_dict["optimizer"])
         self._load_model_state_dict(state_dict["model"])
 
@@ -289,9 +292,19 @@ class Trainer:
                     if self.loss_is_normalized:
                         val_loss /= n_val
 
-                    if self.best_loss > val_loss:
-                        self.best_loss = val_loss
-                        torch.save(self._model, self.best_model)
+                    if self.ensembleModel:
+                        if len(self.best_losses) < self.remember:
+                            self.best_losses.append(val_loss)
+                            torch.save(self._model, self.best_model + str(len(self.best_losses)))
+                        else:
+                            bad_loss = np.argmax(self.best_losses)
+                            if self.best_losses[bad_loss] > val_loss:
+                                self.best_losses[bad_loss] = val_loss
+                                torch.save(self._model, self.best_model + str(bad_loss))
+                    else:
+                        if self.best_loss > val_loss:
+                            self.best_loss = val_loss
+                            torch.save(self._model, self.best_model)
 
                     for h in self.hooks:
                         h.on_validation_end(self, val_loss)
