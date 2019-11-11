@@ -138,13 +138,38 @@ class SchNet(nn.Module):
         use_noise=False,
         noise_mean=0,
         noise_std=1,
+        chargeEmbedding = True,
+        ownFeatures = False,
+        nFeatures = 8,
+        finalFeature = None,
+        finalFeatureStart = 7,
+        finalFeatureStop = 8
+
     ):
         super(SchNet, self).__init__()
 
+        self.finalFeature = finalFeature
+        self.finalFeatureStart = finalFeatureStart
+        self.finalFeatureStop = finalFeatureStop
+        self.chargeEmbedding = chargeEmbedding
+        self.ownFeatures = ownFeatures
         self.n_atom_basis = n_atom_basis
+
         # make a lookup table to store embeddings for each element (up to atomic
         # number max_z) each of which is a vector of size n_atom_basis
-        self.embedding = nn.Embedding(max_z, n_atom_basis, padding_idx=0)
+        if chargeEmbedding and not ownFeatures:
+            self.embedding = nn.Embedding(max_z, n_atom_basis, padding_idx=0)
+        elif chargeEmbedding and ownFeatures:
+            if nFeatures is None:
+                raise NotImplementedError
+            self.embedding = nn.Embedding(max_z, int(n_atom_basis / 2), padding_idx=0)
+            self.denseEmbedding = Dense(nFeatures, int(n_atom_basis / 2))
+        elif ownFeatures and not chargeEmbedding:
+            if nFeatures is None:
+                raise NotImplementedError
+            self.denseEmbedding = Dense(nFeatures, n_atom_basis)
+        else:
+            raise NotImplementedError
 
         # layer for computing interatomic distances
         self.distances = AtomDistances()
@@ -234,9 +259,21 @@ class SchNet(nn.Module):
         neighbors = inputs[Properties.neighbors]
         neighbor_mask = inputs[Properties.neighbor_mask]
         atom_mask = inputs[Properties.atom_mask]
+        if self.finalFeature:
+            finalFeature = inputs['props'][:, :, self.finalFeatureStart:self.finalFeatureStop]
 
-        # get atom embeddings for the input atomic numbers
-        x = self.embedding(atomic_numbers)
+        if self.chargeEmbedding and not self.ownFeatures:
+            x = self.embedding(atomic_numbers)
+        elif self.chargeEmbedding and self.ownFeatures:
+            props = inputs['props']
+            x = self.embedding(atomic_numbers)
+            y = self.denseEmbedding(props)
+            x = torch.cat((y, x), 2)
+        elif self.ownFeatures and not self.chargeEmbedding:
+            props = inputs['props']
+            x = self.denseEmbedding(props)
+        else:
+            raise NotImplementedError
 
         if False and self.charged_systems and Properties.charge in inputs.keys():
             n_atoms = torch.sum(atom_mask, dim=1, keepdim=True)
@@ -265,6 +302,8 @@ class SchNet(nn.Module):
             if self.return_intermediate:
                 xs.append(x)
 
+        if self.finalFeature:
+            torch.cat((x, finalFeature), 2)
         if self.return_intermediate:
             return x, xs
         return x
