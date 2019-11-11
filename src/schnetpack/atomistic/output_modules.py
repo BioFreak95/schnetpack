@@ -84,6 +84,7 @@ class Atomwise(nn.Module):
         stddev=None,
         atomref=None,
         outnet=None,
+        mode='postaggregate'
     ):
         super(Atomwise, self).__init__()
 
@@ -105,13 +106,23 @@ class Atomwise(nn.Module):
             )
         else:
             self.atomref = None
+        self.mode = mode
 
         # build output network
         if outnet is None:
-            self.out_net = nn.Sequential(
-                schnetpack.nn.base.GetItem("representation"),
-                schnetpack.nn.blocks.MLP(n_in, n_out, n_neurons, n_layers, activation, output_activation),
-            )
+            if self.mode == 'postaggregate':
+                self.out_net = nn.Sequential(
+                    schnetpack.nn.base.GetItem("representation"),
+                    schnetpack.nn.blocks.MLP(n_in, n_out, n_neurons, n_layers, activation, output_activation),
+                )
+            elif self.mode == 'praeaggregate':
+                self.rep = schnetpack.nn.base.GetItem("representation")
+                self.out = schnetpack.nn.blocks.MLP(n_in, n_out, n_neurons, n_layers, activation, output_activation)
+            elif self.mode == 'fulldense':
+                self.rep = schnetpack.nn.base.GetItem("representation")
+                self.out_net = schnetpack.nn.blocks.MLP(n_in, n_out, n_neurons, n_layers, activation, output_activation)
+            else:
+                raise NotImplementedError
         else:
             self.out_net = outnet
 
@@ -135,15 +146,27 @@ class Atomwise(nn.Module):
         atomic_numbers = inputs[Properties.Z]
         atom_mask = inputs[Properties.atom_mask]
 
-        # run prediction
-        yi = self.out_net(inputs)
-        yi = self.standardize(yi)
+        if self.mode == 'postaggregate':
+            yi = self.out_net(inputs)
+            yi = self.standardize(yi)
 
-        if self.atomref is not None:
-            y0 = self.atomref(atomic_numbers)
-            yi = yi + y0
+            if self.atomref is not None:
+                y0 = self.atomref(atomic_numbers)
+                yi = yi + y0
 
-        y = self.atom_pool(yi, atom_mask)
+            y = self.atom_pool(yi, atom_mask)
+
+        elif self.mode == 'praeaggregate':
+            yi = self.rep(inputs)
+            yi = torch.mean(yi, 1)
+            y = self.out_net(yi)
+
+        elif self.mode == 'fulldense':
+            yi = self.rep(inputs)
+            y = self.out_net(yi)
+
+        else:
+            raise NotImplementedError
 
         # collect results
         result = {self.property: y}

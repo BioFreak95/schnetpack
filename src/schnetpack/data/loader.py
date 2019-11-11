@@ -13,7 +13,7 @@ from .stats import StatisticsAccumulator
 __all__ = ["AtomsLoader"]
 
 
-def _collate_aseatoms(examples):
+def _collate_aseatoms(examples, natoms=None, props=False):
     """
     Build batch from systems and properties & apply padding
 
@@ -36,6 +36,13 @@ def _collate_aseatoms(examples):
             max_size[prop] = np.maximum(
                 max_size[prop], np.array(val.size(), dtype=np.int)
             )
+    if natoms is not None:
+        max_size['_atomic_numbers'][0] = natoms
+        max_size['_positions'][0] = natoms
+        max_size['_neighbors'][0] = natoms
+        max_size['_cell_offset'][0] = natoms
+        if props:
+            max_size['props'][0] = natoms
 
     # initialize batch
     batch = {
@@ -142,7 +149,9 @@ class AtomsLoader(DataLoader):
         sampler=None,
         batch_sampler=None,
         num_workers=0,
-        collate_fn=_collate_aseatoms,
+        natoms=None,
+        props=False,
+        collate_fn=lambda natoms=natoms, props=props: _collate_aseatoms(natoms=natoms, props=props),
         pin_memory=False,
         drop_last=False,
         timeout=0,
