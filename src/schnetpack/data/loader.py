@@ -151,12 +151,13 @@ class AtomsLoader(DataLoader):
         num_workers=0,
         natoms=None,
         props=False,
-        collate_fn=lambda natoms=natoms, props=props: _collate_aseatoms(natoms=natoms, props=props),
+        #collate_fn=lambda natoms=natoms, props=props: _collate_aseatoms(natoms=natoms, props=props),
         pin_memory=False,
         drop_last=False,
         timeout=0,
         worker_init_fn=None,
     ):
+        collate_fn=lambda examples, natoms=natoms, props=props: _collate_aseatoms(examples, natoms=natoms, props=props)
         super(AtomsLoader, self).__init__(
             dataset=dataset,
             batch_size=batch_size,

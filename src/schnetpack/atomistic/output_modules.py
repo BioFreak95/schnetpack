@@ -95,6 +95,7 @@ class Atomwise(nn.Module):
         self.derivative = derivative
         self.negative_dr = negative_dr
         self.stress = stress
+        self.n_in = n_in
 
         mean = torch.FloatTensor([0.0]) if mean is None else mean
         stddev = torch.FloatTensor([1.0]) if stddev is None else stddev
@@ -117,10 +118,14 @@ class Atomwise(nn.Module):
                 )
             elif self.mode == 'praeaggregate':
                 self.rep = schnetpack.nn.base.GetItem("representation")
-                self.out = schnetpack.nn.blocks.MLP(n_in, n_out, n_neurons, n_layers, activation, output_activation)
+                self.out_net = schnetpack.nn.blocks.MLP(n_in, n_out, n_neurons, n_layers, activation, output_activation)
             elif self.mode == 'fulldense':
                 self.rep = schnetpack.nn.base.GetItem("representation")
                 self.out_net = schnetpack.nn.blocks.MLP(n_in, n_out, n_neurons, n_layers, activation, output_activation)
+            elif self.mode == 'doubledense':
+                self.rep = schnetpack.nn.base.GetItem('representation')
+                self.dense1 = schnetpack.nn.blocks.MLP(n_in[0], 1, n_neurons, n_layers, activation, output_activation)
+                self.dense2 = schnetpack.nn.blocks.MLP(n_in[1], n_out, n_neurons, n_layers, activation, output_activation)
             else:
                 raise NotImplementedError
         else:
@@ -163,7 +168,13 @@ class Atomwise(nn.Module):
 
         elif self.mode == 'fulldense':
             yi = self.rep(inputs)
+            yi = yi.view(-1, self.n_in)
             y = self.out_net(yi)
+        elif self.mode == 'doubledense':
+            yi = self.rep(inputs)
+            yi = self.dense1(yi)
+            yi = yi.view(-1, self.n_in[1])
+            y = self.dense2(yi)
 
         else:
             raise NotImplementedError

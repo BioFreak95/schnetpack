@@ -1,4 +1,5 @@
 import os
+import datetime
 import numpy as np
 
 
@@ -9,6 +10,7 @@ def train_test_split(
     split_file=None,
     stratify_partitions=False,
     num_per_partition=False,
+    log=None,
 ):
     """
     Splits the dataset into train/validation/test splits, writes split to
@@ -35,6 +37,10 @@ def train_test_split(
         val_idx = S["val_idx"].tolist()
         test_idx = S["test_idx"].tolist()
     else:
+        if log is not None:
+            f = open(log, "a")
+            f.writelines(str(datetime.datetime.now()) + ': Create train_val_test split with ' + str(num_train) + ' train_samples and ' + str(num_val) + ' val_samples of ' + str(len(data)) + ' datapoints at total.' + '\n')
+            f.close()
         if num_train is None or num_val is None:
             raise ValueError(
                 "You have to supply either split sizes (num_train /"
