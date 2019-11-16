@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 from schnetpack import Properties
 from .stats import StatisticsAccumulator
 
-
 __all__ = ["AtomsLoader"]
 
 
@@ -142,22 +141,21 @@ class AtomsLoader(DataLoader):
     """
 
     def __init__(
-        self,
-        dataset,
-        batch_size=1,
-        shuffle=False,
-        sampler=None,
-        batch_sampler=None,
-        num_workers=0,
-        natoms=None,
-        props=False,
-        #collate_fn=lambda natoms=natoms, props=props: _collate_aseatoms(natoms=natoms, props=props),
-        pin_memory=False,
-        drop_last=False,
-        timeout=0,
-        worker_init_fn=None,
+            self,
+            dataset,
+            batch_size=1,
+            shuffle=False,
+            sampler=None,
+            batch_sampler=None,
+            num_workers=0,
+            natoms=None,
+            props=False,
+            pin_memory=False,
+            drop_last=False,
+            timeout=0,
+            worker_init_fn=None,
     ):
-        collate_fn=lambda examples, natoms=natoms, props=props: _collate_aseatoms(examples, natoms=natoms, props=props)
+        collate_fn = lambda examples, natoms=natoms, props=props: _collate_aseatoms(examples, natoms=natoms, props=props),
         super(AtomsLoader, self).__init__(
             dataset=dataset,
             batch_size=batch_size,
@@ -173,7 +171,7 @@ class AtomsLoader(DataLoader):
         )
 
     def get_statistics(
-        self, property_names, divide_by_atoms=False, single_atom_ref=None
+            self, property_names, divide_by_atoms=False, single_atom_ref=None
     ):
         """
         Compute mean and variance of a property. Uses the incremental Welford
@@ -221,7 +219,7 @@ class AtomsLoader(DataLoader):
         return means, stddevs
 
     def _update_statistic(
-        self, divide_by_atoms, single_atom_ref, property_name, row, statistics
+            self, divide_by_atoms, single_atom_ref, property_name, row, statistics
     ):
         """
         Helper function to update iterative mean / stddev statistics
