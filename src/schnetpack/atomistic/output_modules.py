@@ -111,6 +111,7 @@ class Atomwise(nn.Module):
 
         # build output network
         if outnet is None:
+            print(self.mode)
             if self.mode == 'postaggregate':
                 self.out_net = nn.Sequential(
                     schnetpack.nn.base.GetItem("representation"),
