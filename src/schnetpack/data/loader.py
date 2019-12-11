@@ -155,7 +155,7 @@ class AtomsLoader(DataLoader):
             timeout=0,
             worker_init_fn=None,
     ):
-        collate_fn = lambda examples, natoms=natoms, props=props: _collate_aseatoms(examples, natoms=natoms, props=props),
+        collate_fn = lambda examples, natoms=natoms, props=props: _collate_aseatoms(examples, natoms=natoms, props=props)
         super(AtomsLoader, self).__init__(
             dataset=dataset,
             batch_size=batch_size,

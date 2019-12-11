@@ -281,7 +281,7 @@ class SchNet(nn.Module):
             charge = charge[:, None] * self.charge  # B x F
             x = x + charge
 
-        if self.use_noise:
+        if self.use_noise and self.training:
             shape = torch.zeros(positions.size())
             noise = Variable(torch.normal(mean=shape+self.noise_mean, std=shape+self.noise_std)).cuda()
             positions + noise
@@ -303,7 +303,7 @@ class SchNet(nn.Module):
                 xs.append(x)
 
         if self.finalFeature:
-            torch.cat((x, finalFeature), 2)
+            x = torch.cat((x, finalFeature), 2)
         if self.return_intermediate:
             return x, xs
         return x

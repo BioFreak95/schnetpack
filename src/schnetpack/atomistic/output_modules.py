@@ -125,8 +125,8 @@ class Atomwise(nn.Module):
                 self.out_net = schnetpack.nn.blocks.MLP(n_in, n_out, n_neurons, n_layers, activation, output_activation)
             elif self.mode == 'doubledense':
                 self.rep = schnetpack.nn.base.GetItem('representation')
-                self.dense1 = schnetpack.nn.blocks.MLP(n_in[0], 1, n_neurons, n_layers, activation, output_activation)
-                self.dense2 = schnetpack.nn.blocks.MLP(n_in[1], n_out, n_neurons, n_layers, activation, output_activation)
+                self.dense1 = schnetpack.nn.blocks.MLP(n_in[0], 1, n_neurons, n_layers[0], activation, output_activation)
+                self.dense2 = schnetpack.nn.blocks.MLP(n_in[1], n_out, n_neurons, n_layers[1], activation, output_activation)
             else:
                 raise NotImplementedError
         else:
@@ -164,16 +164,21 @@ class Atomwise(nn.Module):
 
         elif self.mode == 'praeaggregate':
             yi = self.rep(inputs)
-            yi = torch.mean(yi, 1)
+            yi = self.atom_pool(yi, atom_mask)
             y = self.out_net(yi)
 
         elif self.mode == 'fulldense':
             yi = self.rep(inputs)
+            # Set dummy-atoms to zero
+            yi = yi * atom_mask[..., None]
             yi = yi.view(-1, self.n_in)
             y = self.out_net(yi)
+
         elif self.mode == 'doubledense':
             yi = self.rep(inputs)
             yi = self.dense1(yi)
+            # Set dummy-atoms to zero
+            yi = yi * atom_mask[..., None]
             yi = yi.view(-1, self.n_in[1])
             y = self.dense2(yi)
 

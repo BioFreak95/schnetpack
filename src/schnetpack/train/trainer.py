@@ -161,6 +161,7 @@ class Trainer:
             lene2 = -1
         else:
             lene2 = lene - remember
+        #for i in range(len(epoch_losses)):
         for i in range(lene - 1, lene2, -1):
             preds.append(epoch_losses[i][batch_num])
         preds = torch.tensor(preds)
@@ -203,6 +204,8 @@ class Trainer:
                 #                if progress:
                 #                    train_iter = tqdm(self.train_loader)
                 #                else:
+                self._model.train()
+
                 train_iter = self.train_loader
 
                 self.optimizer.zero_grad()
@@ -245,6 +248,7 @@ class Trainer:
                     self.store_checkpoint()
 
                 # validation
+                self._model.eval()
                 if self.epoch % self.validation_interval == 0 or self._stop:
                     for h in self.hooks:
                         h.on_validation_begin(self)
@@ -275,10 +279,11 @@ class Trainer:
                                 pred = prediction
                             else:
                                 pred = self.calc_pred(prediction, self.epoch_losses, batch_num, self.remember)
-                            batch_losses.append(pred)
+                            batch_losses.append(pred.data)
+                            #print(batch_losses.data)
                             batch_num += 1
                             val_result['y'] = pred
-                            print('Pred: ', val_result['y'])
+                            print('Pred: ', val_result['y'], torch.cuda.memory_allocated(device=None))
 
                         val_batch_loss = (
                             self.loss_fn(val_batch, val_result).data.cpu().numpy()
@@ -299,11 +304,13 @@ class Trainer:
                     if self.ensembleModel:
                         if len(self.best_losses) < self.remember:
                             self.best_losses.append(val_loss)
-                            torch.save(self._model, self.best_model + str(len(self.best_losses)))
+                            #self.epoch_losses.append(batch_losses)
+                            torch.save(self._model, self.best_model + str(len(self.best_losses) - 1))
                         else:
                             bad_loss = np.argmax(self.best_losses)
                             if self.best_losses[bad_loss] > val_loss:
                                 self.best_losses[bad_loss] = val_loss
+                                #self.epoch_losses[bad_loss] = batch_losses
                                 torch.save(self._model, self.best_model + str(bad_loss))
                     else:
                         if self.best_loss > val_loss:
@@ -312,6 +319,7 @@ class Trainer:
 
                     for h in self.hooks:
                         h.on_validation_end(self, val_loss)
+
                     if self.ensembleModel:
                         self.epoch_losses.append(batch_losses)
 
