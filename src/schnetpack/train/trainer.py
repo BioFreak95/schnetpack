@@ -279,10 +279,10 @@ class Trainer:
                                 pred = prediction
                             else:
                                 pred = self.calc_pred(prediction, self.epoch_losses, batch_num, self.remember)
-                            batch_losses.append(pred.data)
+                            batch_losses.append(prediction.data)
                             #print(batch_losses.data)
                             batch_num += 1
-                            val_result['y'] = prediction
+                            val_result['y'] = pred
                             print('Pred: ', val_result['y'], torch.cuda.memory_allocated(device=None))
 
                         val_batch_loss = (
