@@ -282,7 +282,7 @@ class Trainer:
                             batch_losses.append(pred.data)
                             #print(batch_losses.data)
                             batch_num += 1
-                            val_result['y'] = pred
+                            val_result['y'] = prediction
                             print('Pred: ', val_result['y'], torch.cuda.memory_allocated(device=None))
 
                         val_batch_loss = (
