@@ -225,6 +225,7 @@ class Trainer:
                     train_batch = {k: v.to(device) for k, v in train_batch.items()}
 
                     # The use of accumulating gradients was adopted from https://discuss.pytorch.org/t/accumulating-gradients/30020
+                    # Which discussed the following article https://medium.com/huggingface/training-larger-batches-practical-tips-on-1-gpu-multi-gpu-distributed-setups-ec88c3e51255
                     result = self._model(train_batch)
                     loss = self.loss_fn(train_batch, result) / self.n_acc_steps
                     loss.backward()
