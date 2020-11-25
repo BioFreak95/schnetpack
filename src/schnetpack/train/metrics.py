@@ -591,6 +591,7 @@ class AngleRMSE(RootMeanSquaredError):
         )
 
 
+# Scheme copied from above and the modified in case to calculate the accuracy. (Number correct predictions, for a classification-model.)
 class Accuracy(Metric):
     r"""
     Metric for accuracy.
