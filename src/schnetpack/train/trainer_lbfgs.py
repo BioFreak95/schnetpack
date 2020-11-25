@@ -1,3 +1,6 @@
+# Copied from https://github.com/atomistic-machine-learning/schnetpack/blob/master/src/schnetpack/train/trainer.py and modified to use LBFGS. 
+# Needed to add a closure see https://pytorch.org/docs/stable/optim.html
+
 import os
 import sys
 import numpy as np
